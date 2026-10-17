@@ -1,0 +1,36 @@
+name: Monitor Noticias
+
+on:
+  schedule:
+    # Se ejecuta automáticamente cada 10 minutos
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Preparar Python
+        uses: setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar librerias
+        run: pip install feedparser requests
+
+      - name: Ejecutar bot
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python bot_monitor.py
+
+      - name: Guardar memoria para no repetir
+        run: |
+          git config --global user.name "bot"
+          git config --global user.email "bot@github.com"
+          git add last_seen_posts.json || true
+          git commit -m "actualizar memoria [skip ci]" || true
+          git push || true
