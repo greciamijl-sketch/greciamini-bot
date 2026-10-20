@@ -34,6 +34,7 @@ SOURCES = [
     {"category": "JUSTICIA EE.UU.", "author": "DOJ (@TheJusticeDept)", "url": "https://nitter.privacydev.net/TheJusticeDept/rss"},
     {"category": "SEGURIDAD NACIONAL", "author": "DHS (@DHSgov)", "url": "https://nitter.privacydev.net/DHSgov/rss"},
     {"category": "SEGURIDAD NACIONAL", "author": "CBP (@CBP)", "url": "https://nitter.privacydev.net/CBP/rss"},
+    {"category": "INVESTIGACIONES SEGURIDAD", "author": "HSI HQ (@HSI_HQ)", "url": "https://nitter.privacydev.net/HSI_HQ/rss"},
     {"category": "GOBIERNO TEXAS", "author": "Gov. Greg Abbott (@GregAbbott_TX)", "url": "https://nitter.privacydev.net/GregAbbott_TX/rss"},
     {"category": "FRONTERA REPORTEROS", "author": "Ali Bradley (@AliBradleyTV)", "url": "https://nitter.privacydev.net/AliBradleyTV/rss"},
     {"category": "FRONTERA REPORTEROS", "author": "Bill Melugin (@BillMelugin_)", "url": "https://nitter.privacydev.net/BillMelugin_/rss"},
