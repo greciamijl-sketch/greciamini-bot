@@ -28,7 +28,7 @@ SOURCES = [
     # --- Diplomacia y Relaciones Exteriores ---
     {"category": "DIPLOMACIA EE.UU.", "author": "State Dept (@StateDept)", "url": "https://nitter.privacydev.net/StateDept/rss"},
 
-    # --- Operativos, Frontera, Seguridad y Justicia ---
+    # --- Seguridad, Justicia y Gobierno ---
     {"category": "ZAR DE LA FRONTERA", "author": "Tom Homan (@RealTomHoman)", "url": "https://nitter.privacydev.net/RealTomHoman/rss"},
     {"category": "AGENCIA SEGURIDAD", "author": "DEA HQ (@DEAHQ)", "url": "https://nitter.privacydev.net/DEAHQ/rss"},
     {"category": "JUSTICIA EE.UU.", "author": "DOJ (@TheJusticeDept)", "url": "https://nitter.privacydev.net/TheJusticeDept/rss"},
@@ -52,24 +52,23 @@ SOURCES = [
     {"category": "CONGRESO EE.UU.", "author": "Jake Sherman (@JakeSherman)", "url": "https://nitter.privacydev.net/JakeSherman/rss"}
 ]
 
-# ================= FILTROS TEMÁTICOS =================
+# ================= FILTROS TEMÁTICOS DEPURADOS =================
 KEYWORDS_REGEX = re.compile(
     r"\b("
-    r"m[eé]xic\w*|"
-    r"sheinbaum|"
+    # México y gentilicios
+    r"m[eé]xic\w*|mexican\w*|"
+    # Presidencia y Cancillería de México
+    r"claudia\s*sheinbaum|sheinbaum|"
+    r"roberto\s*velasco|velasco\s*[aá]lvarez|@r_velascoa|"
+    # Narcóticos, cárteles y extradiciones
     r"c[aá]rtel\w*|"
     r"fentan\w*|"
     r"extradit\w*|extradici[oó]n\w*|"
-    r"indictment|cargos\s*criminales|"
     r"drug\s*traffick\w*|narcotr[aá]fico|"
+    # Comercio y aranceles
     r"tariff\w*|arancel\w*|"
     r"usmca|t-?mec|nafta|"
-    r"trade\s*war|comercio\s*exterior|"
-    r"border|frontera|"
-    r"migra\w*|immigra\w*|"
-    r"cbp|border\s*patrol|"
-    r"port\s*of\s*entry|garita\w*|puente\s*internacional|"
-    r"caravan\w*|deport\w*"
+    r"trade\s*war|comercio\s*exterior"
     r")\b",
     re.IGNORECASE
 )
@@ -87,11 +86,16 @@ def save_state(state):
     with open(STATE_FILE, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=2, ensure_ascii=False)
 
+def clean_html(raw_html):
+    clean = re.sub(r"<[^>]+>", " ", raw_html)
+    return " ".join(clean.split())
+
 def send_telegram(category, author, text, link):
+    safe_text = html.escape(text)
     message = (
         f"🚨 <b>[GreciaMini - {category}]</b>\n"
         f"👤 <b>Fuente:</b> {author}\n\n"
-        f"{html.escape(text)}\n\n"
+        f"{safe_text}\n\n"
         f"🔗 <a href='{link}'>Ver publicación</a>"
     )
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -105,10 +109,6 @@ def send_telegram(category, author, text, link):
         requests.post(url, json=payload, timeout=10)
     except Exception as e:
         print(f"Error al enviar mensaje: {e}")
-
-def clean_html(raw_html):
-    clean = re.sub(r"<[^>]+>", " ", raw_html)
-    return " ".join(clean.split())
 
 def main():
     state = load_state()
