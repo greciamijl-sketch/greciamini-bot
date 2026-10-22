@@ -2,71 +2,75 @@ import json
 import os
 import re
 import html
-import feedparser
+import sys
+import time
 import requests
+import feedparser
+from playwright.sync_api import sync_playwright
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+X_AUTH_TOKEN = os.environ.get("X_AUTH_TOKEN", "").strip()
+X_CT0 = os.environ.get("X_CT0", "").strip()
+
 STATE_FILE = "last_seen_posts.json"
 
-# ================= LISTA COMPLETA DE CUENTAS =================
-SOURCES = [
-    # --- Truth Social directo ---
-    {"category": "TRUTH SOCIAL", "author": "Donald Trump", "url": "https://trumpstruth.org/feed"},
+# ================= 1. TRUTH SOCIAL DIRECTO =================
+TRUTH_SOURCES = [
+    {"category": "TRUTH SOCIAL", "author": "Donald Trump", "url": "https://trumpstruth.org/feed"}
+]
 
-    # --- Liderazgo Casa Blanca y círculo cercano ---
-    {"category": "VICEPRESIDENCIA", "author": "JD Vance (@JDVance)", "url": "https://nitter.privacydev.net/JDVance/rss"},
-    {"category": "TRUMP OFICIAL", "author": "@realDonaldTrump", "url": "https://nitter.privacydev.net/realDonaldTrump/rss"},
-    {"category": "TRUMP FEED", "author": "@TrumpDailyPosts", "url": "https://nitter.privacydev.net/TrumpDailyPosts/rss"},
-    {"category": "TRUMP FEED", "author": "@TruthTrumpPosts", "url": "https://nitter.privacydev.net/TruthTrumpPosts/rss"},
-    {"category": "EQUIPO TRUMP", "author": "@RapidResponse47", "url": "https://nitter.privacydev.net/RapidResponse47/rss"},
-    {"category": "EQUIPO TRUMP", "author": "@TeamTrump", "url": "https://nitter.privacydev.net/TeamTrump/rss"},
-    {"category": "REDES TRUMP", "author": "@DanScavino", "url": "https://nitter.privacydev.net/DanScavino/rss"},
-    {"category": "CASA BLANCA", "author": "Stephen Miller (@StephenM)", "url": "https://nitter.privacydev.net/StephenM/rss"},
-    {"category": "SENADO / GOBIERNO", "author": "Marco Rubio (@marcorubio)", "url": "https://nitter.privacydev.net/marcorubio/rss"},
+# ================= 2. CUENTAS DE X (ALGORITMO MAGA / GOBIERNO EE.UU.) =================
+X_SOURCES = [
+    # Liderazgo Casa Blanca y círculo cercano
+    {"category": "VICEPRESIDENCIA", "author": "JD Vance", "handle": "JDVance"},
+    {"category": "TRUMP OFICIAL", "author": "Donald J. Trump", "handle": "realDonaldTrump"},
+    {"category": "TRUMP FEED", "author": "Trump Daily Posts", "handle": "TrumpDailyPosts"},
+    {"category": "TRUMP FEED", "author": "Truth Trump Posts", "handle": "TruthTrumpPosts"},
+    {"category": "EQUIPO TRUMP", "author": "Rapid Response 47", "handle": "RapidResponse47"},
+    {"category": "EQUIPO TRUMP", "author": "Team Trump", "handle": "TeamTrump"},
+    {"category": "REDES TRUMP", "author": "Dan Scavino", "handle": "DanScavino"},
+    {"category": "CASA BLANCA", "author": "Stephen Miller", "handle": "StephenM"},
+    {"category": "SENADO / GOBIERNO", "author": "Marco Rubio", "handle": "marcorubio"},
 
-    # --- Diplomacia y Relaciones Exteriores ---
-    {"category": "DIPLOMACIA EE.UU.", "author": "State Dept (@StateDept)", "url": "https://nitter.privacydev.net/StateDept/rss"},
+    # Diplomacia y Relaciones Exteriores
+    {"category": "DIPLOMACIA EE.UU.", "author": "State Dept", "handle": "StateDept"},
 
-    # --- Seguridad, Justicia y Gobierno ---
-    {"category": "ZAR DE LA FRONTERA", "author": "Tom Homan (@RealTomHoman)", "url": "https://nitter.privacydev.net/RealTomHoman/rss"},
-    {"category": "AGENCIA SEGURIDAD", "author": "DEA HQ (@DEAHQ)", "url": "https://nitter.privacydev.net/DEAHQ/rss"},
-    {"category": "JUSTICIA EE.UU.", "author": "DOJ (@TheJusticeDept)", "url": "https://nitter.privacydev.net/TheJusticeDept/rss"},
-    {"category": "SEGURIDAD NACIONAL", "author": "DHS (@DHSgov)", "url": "https://nitter.privacydev.net/DHSgov/rss"},
-    {"category": "SEGURIDAD NACIONAL", "author": "CBP (@CBP)", "url": "https://nitter.privacydev.net/CBP/rss"},
-    {"category": "INVESTIGACIONES SEGURIDAD", "author": "HSI HQ (@HSI_HQ)", "url": "https://nitter.privacydev.net/HSI_HQ/rss"},
-    {"category": "GOBIERNO TEXAS", "author": "Gov. Greg Abbott (@GregAbbott_TX)", "url": "https://nitter.privacydev.net/GregAbbott_TX/rss"},
-    {"category": "FRONTERA REPORTEROS", "author": "Ali Bradley (@AliBradleyTV)", "url": "https://nitter.privacydev.net/AliBradleyTV/rss"},
-    {"category": "FRONTERA REPORTEROS", "author": "Bill Melugin (@BillMelugin_)", "url": "https://nitter.privacydev.net/BillMelugin_/rss"},
-    {"category": "FRONTERA REPORTEROS", "author": "Griff Jenkins (@GriffJenkins)", "url": "https://nitter.privacydev.net/GriffJenkins/rss"},
+    # Seguridad, Justicia y Frontera
+    {"category": "ZAR DE LA FRONTERA", "author": "Tom Homan", "handle": "RealTomHoman"},
+    {"category": "AGENCIA SEGURIDAD", "author": "DEA HQ", "handle": "DEAHQ"},
+    {"category": "JUSTICIA EE.UU.", "author": "DOJ", "handle": "TheJusticeDept"},
+    {"category": "SEGURIDAD NACIONAL", "author": "DHS", "handle": "DHSgov"},
+    {"category": "SEGURIDAD NACIONAL", "author": "CBP", "handle": "CBP"},
+    {"category": "INVESTIGACIONES SEGURIDAD", "author": "HSI HQ", "handle": "HSI_HQ"},
+    {"category": "GOBIERNO TEXAS", "author": "Gov. Greg Abbott", "handle": "GregAbbott_TX"},
+    {"category": "FRONTERA REPORTEROS", "author": "Ali Bradley", "handle": "AliBradleyTV"},
+    {"category": "FRONTERA REPORTEROS", "author": "Bill Melugin", "handle": "BillMelugin_"},
+    {"category": "FRONTERA REPORTEROS", "author": "Griff Jenkins", "handle": "GriffJenkins"},
 
-    # --- Comercio, Aranceles y T-MEC ---
-    {"category": "COMERCIO EE.UU.", "author": "USTR (@USTradeRep)", "url": "https://nitter.privacydev.net/USTradeRep/rss"},
-    {"category": "COMERCIO EE.UU.", "author": "Dept of Commerce (@CommerceGov)", "url": "https://nitter.privacydev.net/CommerceGov/rss"},
-    {"category": "PRENSA COMERCIAL", "author": "Doug Palmer (@DougPalmer)", "url": "https://nitter.privacydev.net/DougPalmer/rss"},
-    {"category": "PRENSA COMERCIAL", "author": "Gavin Bade (@GavinBade)", "url": "https://nitter.privacydev.net/GavinBade/rss"},
+    # Comercio, Aranceles y T-MEC
+    {"category": "COMERCIO EE.UU.", "author": "USTR", "handle": "USTradeRep"},
+    {"category": "COMERCIO EE.UU.", "author": "Dept of Commerce", "handle": "CommerceGov"},
+    {"category": "PRENSA COMERCIAL", "author": "Doug Palmer", "handle": "DougPalmer"},
+    {"category": "PRENSA COMERCIAL", "author": "Gavin Bade", "handle": "GavinBade"},
 
-    # --- Ruptura política, clips y filtraciones ---
-    {"category": "CLIPS TRUMP", "author": "Acyn (@Acyn)", "url": "https://nitter.privacydev.net/Acyn/rss"},
-    {"category": "FILTRACIONES NYT", "author": "Maggie Haberman (@maggieNYT)", "url": "https://nitter.privacydev.net/maggieNYT/rss"},
-    {"category": "CONGRESO EE.UU.", "author": "Punchbowl News (@PunchbowlNews)", "url": "https://nitter.privacydev.net/PunchbowlNews/rss"},
-    {"category": "CONGRESO EE.UU.", "author": "Jake Sherman (@JakeSherman)", "url": "https://nitter.privacydev.net/JakeSherman/rss"}
+    # Ruptura política, clips y filtraciones
+    {"category": "CLIPS TRUMP", "author": "Acyn", "handle": "Acyn"},
+    {"category": "FILTRACIONES NYT", "author": "Maggie Haberman", "handle": "maggieNYT"},
+    {"category": "CONGRESO EE.UU.", "author": "Punchbowl News", "handle": "PunchbowlNews"},
+    {"category": "CONGRESO EE.UU.", "author": "Jake Sherman", "handle": "JakeSherman"}
 ]
 
 # ================= FILTROS TEMÁTICOS DEPURADOS =================
 KEYWORDS_REGEX = re.compile(
     r"\b("
-    # México y gentilicios
     r"m[eé]xic\w*|mexican\w*|"
-    # Presidencia y Cancillería de México
     r"claudia\s*sheinbaum|sheinbaum|"
     r"roberto\s*velasco|velasco\s*[aá]lvarez|@r_velascoa|"
-    # Narcóticos, cárteles y extradiciones
     r"c[aá]rtel\w*|"
     r"fentan\w*|"
     r"extradit\w*|extradici[oó]n\w*|"
     r"drug\s*traffick\w*|narcotr[aá]fico|"
-    # Comercio y aranceles
     r"tariff\w*|arancel\w*|"
     r"usmca|t-?mec|nafta|"
     r"trade\s*war|comercio\s*exterior"
@@ -109,13 +113,47 @@ def send_telegram(category, author, text, link):
     try:
         requests.post(url, json=payload, timeout=10)
     except Exception as e:
-        print(f"Error al enviar mensaje: {e}")
+        print(f"Error al enviar mensaje a Telegram: {e}", flush=True)
 
-def main():
-    state = load_state()
-    is_initial_run = (len(state) == 0)
+def scrape_tweets(page, handle):
+    url = f"https://x.com/{handle}"
+    page.goto(url, wait_until="domcontentloaded", timeout=12000)
 
-    for source in SOURCES:
+    for _ in range(2):
+        page.mouse.wheel(0, 800)
+        time.sleep(0.8)
+
+    tweet_elements = page.locator("article[data-testid='tweet']").all()[:5]
+    if not tweet_elements:
+        tweet_elements = page.locator("div[aria-label*='Timeline'] article, section article").all()[:5]
+
+    tweets = []
+    for art in tweet_elements:
+        try:
+            link_elem = art.locator("a[href*='/status/']").first
+            href = link_elem.get_attribute("href") if link_elem.count() > 0 else None
+            if not href or "/status/" not in href:
+                continue
+
+            match_id = re.search(r"/status/(\d+)", href)
+            tweet_id = match_id.group(1) if match_id else href
+
+            text_elem = art.locator("[data-testid='tweetText']").first
+            text = text_elem.inner_text() if text_elem.count() > 0 else art.inner_text()
+
+            tweets.append({
+                "id": str(tweet_id),
+                "text": text,
+                "link": f"https://x.com{href}" if href.startswith("/") else href
+            })
+        except Exception:
+            continue
+
+    return tweets
+
+def process_truth_social(state, is_initial_run):
+    print("=== MONITOREANDO TRUTH SOCIAL ===", flush=True)
+    for source in TRUTH_SOURCES:
         category = source["category"]
         name = source["author"]
         url = source["url"]
@@ -123,11 +161,15 @@ def main():
 
         try:
             feed = feedparser.parse(url, request_headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-        except Exception:
+        except Exception as e:
+            print(f"❌ Error al consultar Truth Social ({name}): {e}", flush=True)
             continue
 
         if not feed.entries:
+            print(f"⚠️ Sin entradas en Truth Social ({name})", flush=True)
             continue
+
+        print(f"✅ Truth Social ({name}): {len(feed.entries)} publicaciones obtenidas.", flush=True)
 
         if is_initial_run or last_id is None:
             state[name] = feed.entries[0].get("id", feed.entries[0].link)
@@ -146,13 +188,91 @@ def main():
             full_text = clean_html(f"{raw_title} {raw_summary}")
 
             if KEYWORDS_REGEX.search(full_text):
+                print(f"🚨 Coincidencia en Truth Social: {full_text[:60]}", flush=True)
                 preview = full_text[:400] + ("..." if len(full_text) > 400 else "")
                 send_telegram(category, name, preview, entry.link)
 
         if new_entries:
             state[name] = new_entries[0].get("id", new_entries[0].link)
 
+def process_x_sources(state, is_initial_run):
+    print(f"\n=== MONITOREANDO X: {len(X_SOURCES)} FUENTES ===", flush=True)
+    
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            headless=True,
+            args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-blink-features=AutomationControlled"
+            ]
+        )
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            locale="es-ES",
+            viewport={"width": 1280, "height": 900}
+        )
+
+        context.add_cookies([
+            {"name": "auth_token", "value": X_AUTH_TOKEN, "domain": ".x.com", "path": "/"},
+            {"name": "ct0", "value": X_CT0, "domain": ".x.com", "path": "/"},
+            {"name": "auth_token", "value": X_AUTH_TOKEN, "domain": "x.com", "path": "/"},
+            {"name": "ct0", "value": X_CT0, "domain": "x.com", "path": "/"}
+        ])
+
+        page = context.new_page()
+
+        for source in X_SOURCES:
+            category = source["category"]
+            author = source["author"]
+            handle = source["handle"]
+            last_id = state.get(handle)
+
+            try:
+                tweets = scrape_tweets(page, handle)
+            except Exception as e:
+                print(f"❌ Error al consultar @{handle}: {e}", flush=True)
+                continue
+
+            print(f"✅ @{handle}: {len(tweets)} tuits obtenidos.", flush=True)
+
+            if not tweets:
+                continue
+
+            if is_initial_run or last_id is None:
+                state[handle] = tweets[0]["id"]
+                continue
+
+            new_tweets = []
+            for t in tweets:
+                if t["id"] == last_id:
+                    break
+                new_tweets.append(t)
+
+            for t in reversed(new_tweets):
+                full_text = clean_html(t["text"])
+                if KEYWORDS_REGEX.search(full_text):
+                    print(f"🚨 Coincidencia en @{handle}: {full_text[:60]}", flush=True)
+                    preview = full_text[:400] + ("..." if len(full_text) > 400 else "")
+                    send_telegram(category, f"{author} (@{handle})", preview, t["link"])
+
+            if new_tweets:
+                state[handle] = new_tweets[0]["id"]
+
+        browser.close()
+
+def main():
+    state = load_state()
+    is_initial_run = (len(state) == 0)
+
+    # 1. Monitoreo de Truth Social
+    process_truth_social(state, is_initial_run)
+
+    # 2. Monitoreo de X con Playwright
+    process_x_sources(state, is_initial_run)
+
     save_state(state)
+    print("\n=== FIN DEL MONITOREO MAGA ===", flush=True)
 
 if __name__ == "__main__":
     main()
