@@ -15,12 +15,12 @@ X_CT0 = os.environ.get("X_CT0", "").strip()
 
 STATE_FILE = "last_seen_posts.json"
 
-# ================= 1. TRUTH SOCIAL DIRECTO =================
+# ================= 1. TRUTH SOCIAL =================
 TRUTH_SOURCES = [
     {"category": "TRUTH SOCIAL", "author": "Donald Trump", "url": "https://trumpstruth.org/feed"}
 ]
 
-# ================= 2. CUENTAS DE X (ALGORITMO MAGA / GOBIERNO EE.UU.) =================
+# ================= 2. CUENTAS DE X =================
 X_SOURCES = [
     # Liderazgo Casa Blanca y círculo cercano
     {"category": "VICEPRESIDENCIA", "author": "JD Vance", "handle": "JDVance"},
@@ -36,7 +36,7 @@ X_SOURCES = [
     # Diplomacia y Relaciones Exteriores
     {"category": "DIPLOMACIA EE.UU.", "author": "State Dept", "handle": "StateDept"},
 
-    # Seguridad, Justicia y Frontera
+    # Seguridad, Justicia y Gobierno
     {"category": "ZAR DE LA FRONTERA", "author": "Tom Homan", "handle": "RealTomHoman"},
     {"category": "AGENCIA SEGURIDAD", "author": "DEA HQ", "handle": "DEAHQ"},
     {"category": "JUSTICIA EE.UU.", "author": "DOJ", "handle": "TheJusticeDept"},
@@ -61,7 +61,7 @@ X_SOURCES = [
     {"category": "CONGRESO EE.UU.", "author": "Jake Sherman", "handle": "JakeSherman"}
 ]
 
-# ================= FILTROS TEMÁTICOS DEPURADOS =================
+# ================= FILTROS TEMÁTICOS =================
 KEYWORDS_REGEX = re.compile(
     r"\b("
     r"m[eé]xic\w*|mexican\w*|"
@@ -98,7 +98,7 @@ def clean_html(raw_html):
 def send_telegram(category, author, text, link):
     safe_text = html.escape(text)
     message = (
-        f"🚨 <b>[GreciaMini - {category}]</b>\n"
+        f"🚨 <b>[GreciaMiniBot - {category}]</b>\n"
         f"👤 <b>Fuente:</b> {author}\n\n"
         f"{safe_text}\n\n"
         f"🔗 <a href='{link}'>Ver publicación</a>"
@@ -197,7 +197,7 @@ def process_truth_social(state, is_initial_run):
 
 def process_x_sources(state, is_initial_run):
     print(f"\n=== MONITOREANDO X: {len(X_SOURCES)} FUENTES ===", flush=True)
-    
+
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
@@ -272,7 +272,7 @@ def main():
     process_x_sources(state, is_initial_run)
 
     save_state(state)
-    print("\n=== FIN DEL MONITOREO MAGA ===", flush=True)
+    print("\n=== FIN DEL MONITOREO GRECIAMINIBOT ===", flush=True)
 
 if __name__ == "__main__":
     main()
