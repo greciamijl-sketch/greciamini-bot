@@ -124,16 +124,38 @@ def send_telegram(category, author, text, link):
         print(f"Error al enviar mensaje a Telegram: {e}", flush=True)
 
 
+def wait_challenge(page, max_wait=25):
+    """Espera a que se resuelva el reto de Cloudflare ('Un momento…').
+    Devuelve True si la página pasó, False si sigue bloqueada."""
+    for _ in range(max_wait):
+        try:
+            title = (page.title() or "").lower()
+        except Exception:
+            title = ""
+        if "un momento" not in title and "just a moment" not in title:
+            return True
+        time.sleep(1)
+    return False
+
+
 def check_login(page):
-    """Verifica que las cookies de X sirvan antes de revisar las cuentas."""
+    """Verifica que X deje entrar y que las cookies sirvan."""
     page.goto("https://x.com/home", wait_until="domcontentloaded", timeout=25000)
-    time.sleep(5)
+    if not wait_challenge(page, 25):
+        print("🛡️ Cloudflare bloqueó al runner (reto 'Un momento…' sin resolver). "
+              "No es problema de cookies: es la IP/huella del runner.", flush=True)
+        return False
+    time.sleep(3)
     print(f"🔎 URL en /home: {page.url} | Título: {page.title()}", flush=True)
     return "login" not in page.url and "/i/flow" not in page.url
 
 
 def scrape_tweets(page, handle):
     page.goto(f"https://x.com/{handle}", wait_until="domcontentloaded", timeout=20000)
+
+    if not wait_challenge(page, 15):
+        print(f"🛡️ @{handle}: Cloudflare sigue bloqueando.", flush=True)
+        return []
 
     # Esperar a que X cargue los tuits (antes se leía demasiado pronto)
     try:
