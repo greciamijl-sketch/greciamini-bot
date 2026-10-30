@@ -370,7 +370,7 @@ def main():
     # Si es la primera ejecución o no se ha mandado el mensaje de bienvenida, se publica en el canal
     if not state.get("__intro_sent__"):
         send_intro_message()
-        state["__intro_sent__"] = True
+        state["__intro_sent__"] = False
 
     # 1. Truth Social (RSS)
     process_truth_social(state, is_initial_run)
