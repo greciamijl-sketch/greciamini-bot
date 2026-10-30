@@ -71,6 +71,7 @@ KEYWORDS_REGEX = re.compile(
     r"roberto\s*velasco|velasco\s*[aá]lvarez|r_velascoa|"
     r"c[aá]rtel\w*|"
     r"fentan\w*|"
+    r"caravan\w*|caravana\w*|"
     r"extradit\w*|extradici[oó]n\w*|"
     r"drug\s*traffick\w*|narcotr[aá]fico|"
     r"tariff\w*|arancel\w*|"
@@ -99,6 +100,36 @@ def save_state(state):
 def clean_html(raw_html):
     clean = re.sub(r"<[^>]+>", " ", raw_html)
     return " ".join(clean.split())
+
+
+def send_intro_message():
+    message = (
+        "🤖 <b>[GreciaMiniBot - Sistema de Monitoreo Activo]</b>\n\n"
+        "Canal configurado para la detección y alerta temprana en tiempo real sobre la agenda bilateral México–EE.UU.\n\n"
+        "📌 <b>Cobertura de Fuentes:</b>\n"
+        "• <b>Truth Social:</b> Publicaciones directas de Donald Trump.\n"
+        "• <b>X (28 fuentes):</b> Casa Blanca, Departamento de Estado, DHS, CBP, DEA, USTR, gobernadores y periodistas de frontera.\n\n"
+        "🎯 <b>Ejes Temáticos Monitoreados:</b>\n"
+        "• Seguridad fronteriza, migración y caravanas.\n"
+        "• Fentanilo, cárteles y extradiciones.\n"
+        "• Aranceles, guerra comercial y T-MEC / USMCA.\n"
+        "• Menciones directas a México y presidencia."
+    )
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True
+    }
+    try:
+        r = requests.post(url, json=payload, timeout=10)
+        if r.ok:
+            print("📢 Nota introductoria enviada con éxito al canal.", flush=True)
+        else:
+            print(f"❌ Error al enviar intro a Telegram ({r.status_code}): {r.text}", flush=True)
+    except Exception as e:
+        print(f"Error al enviar mensaje intro: {e}", flush=True)
 
 
 def send_telegram(category, author, text, link):
@@ -157,7 +188,6 @@ def scrape_tweets(page, handle):
         print(f"🛡️ @{handle}: Cloudflare sigue bloqueando.", flush=True)
         return []
 
-    # Esperar a que X cargue los tuits (antes se leía demasiado pronto)
     try:
         page.wait_for_selector("article[data-testid='tweet']", timeout=15000)
     except Exception:
@@ -305,7 +335,6 @@ def process_x_sources(state, is_initial_run):
 
             empty_in_a_row = 0
 
-            # El ID más alto es el tuit más reciente (así el tuit fijado no estorba)
             newest_id = max(tweets, key=lambda t: int(t["id"]))["id"]
 
             if is_initial_run or last_id is None:
@@ -319,7 +348,7 @@ def process_x_sources(state, is_initial_run):
                 continue
 
             new_tweets = [t for t in tweets if int(t["id"]) > last_int]
-            new_tweets.sort(key=lambda t: int(t["id"]))  # del más viejo al más nuevo
+            new_tweets.sort(key=lambda t: int(t["id"]))
 
             for t in new_tweets:
                 full_text = clean_html(t["text"])
@@ -337,6 +366,11 @@ def process_x_sources(state, is_initial_run):
 def main():
     state = load_state()
     is_initial_run = (len(state) == 0)
+
+    # Si es la primera ejecución o no se ha mandado el mensaje de bienvenida, se publica en el canal
+    if not state.get("__intro_sent__"):
+        send_intro_message()
+        state["__intro_sent__"] = True
 
     # 1. Truth Social (RSS)
     process_truth_social(state, is_initial_run)
